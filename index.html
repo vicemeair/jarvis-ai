@@ -1,0 +1,56 @@
+```html
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#030914">
+  <title>J.A.R.V.I.S. — Stark AI</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="grid"></div>
+
+  <header>
+    <div class="logo">J.A.R.V.I.S.</div>
+    <div class="status"><span class="dot"></span> SYSTÈME EN LIGNE</div>
+  </header>
+
+  <main>
+    <section class="core-section">
+      <div class="core" id="core">
+        <div class="ring ring1"></div>
+        <div class="ring ring2"></div>
+        <div class="ring ring3"></div>
+        <div class="core-center">
+          <div class="core-symbol">J</div>
+        </div>
+      </div>
+
+      <h1>Bonjour, monsieur.</h1>
+      <p id="status">Tous les systèmes sont prêts.</p>
+      <button id="voiceButton" class="voice-button">🎙️ PARLER À J.A.R.V.I.S.</button>
+      <p class="hint">Assistant personnel · Interface expérimentale</p>
+    </section>
+
+    <section class="panel">
+      <div class="panel-title">TERMINAL DE COMMUNICATION</div>
+      <div id="messages" class="messages">
+        <div class="message jarvis-message">
+          <span class="sender">J.A.R.V.I.S.</span>
+          Bonjour. Mon interface est opérationnelle. Que puis-je faire pour vous ?
+        </div>
+      </div>
+
+      <form id="chatForm">
+        <input id="userInput" type="text" placeholder="Écrivez votre message..." autocomplete="off">
+        <button type="submit" aria-label="Envoyer">➤</button>
+      </form>
+    </section>
+  </main>
+
+  <footer>STARK INDUSTRIES · PERSONAL AI INTERFACE · V1.0</footer>
+  <script src="script.js"></script>
+</body>
+</html>
+```
