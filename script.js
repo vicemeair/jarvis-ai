@@ -6,8 +6,10 @@ const voiceButton = document.getElementById("voiceButton");
 const statusText = document.getElementById("status");
 const core = document.getElementById("core");
 
-// Mémoire locale de la conversation
+const API_URL = "https://jarvis-proxy.emeryroussel38.workers.dev";
+
 let history = [];
+let busy = false;
 
 function addMessage(sender, text, className) {
   const message = document.createElement("div");
@@ -20,17 +22,13 @@ function addMessage(sender, text, className) {
   const content = document.createElement("div");
   content.textContent = text;
 
-  message.appendChild(label);
-  message.appendChild(content);
+  message.append(label, content);
   messages.appendChild(message);
   messages.scrollTop = messages.scrollHeight;
 }
 
 function speak(text) {
-  if (!("speechSynthesis" in window)) {
-    statusText.textContent = "Synthèse vocale non disponible.";
-    return;
-  }
+  if (!("speechSynthesis" in window)) return;
 
   window.speechSynthesis.cancel();
 
@@ -40,8 +38,8 @@ function speak(text) {
   utterance.pitch = 0.9;
 
   const voices = window.speechSynthesis.getVoices();
-  const frenchVoice = voices.find(voice =>
-    voice.lang.toLowerCase().startsWith("fr")
+  const frenchVoice = voices.find(v =>
+    v.lang.toLowerCase().startsWith("fr")
   );
 
   if (frenchVoice) utterance.voice = frenchVoice;
@@ -49,67 +47,87 @@ function speak(text) {
   window.speechSynthesis.speak(utterance);
 }
 
-function replyTo(text) {
-  const message = text.toLowerCase().trim();
-  let response;
-
-  if (message.includes("bonjour") || message.includes("salut")) {
-    response = "Bonjour ! Je suis J.A.R.V.I.S., votre assistant personnel.";
-  } else if (message.includes("ton nom") || message.includes("qui es-tu")) {
-    response = "Je suis J.A.R.V.I.S., votre assistant personnel expérimental.";
-  } else if (message.includes("heure")) {
-    response = "Il est " + new Date().toLocaleTimeString("fr-FR", {
-      hour: "2-digit",
-      minute: "2-digit"
-    }) + ".";
-  } else if (message.includes("date")) {
-    response = "Nous sommes le " + new Date().toLocaleDateString("fr-FR") + ".";
-  } else if (message.includes("merci")) {
-    response = "Avec plaisir. Je reste à votre disposition.";
-  } else if (message.includes("comment ça va")) {
-    response = "Tous mes systèmes fonctionnent normalement.";
-  } else if (message.includes("aide")) {
-    response = "Je peux vous donner l'heure, la date et répondre à quelques commandes simples. Mon intelligence artificielle avancée reste à connecter.";
-  } else {
-    response = "J'ai bien reçu votre message. Pour le moment, mon intelligence est limitée. La prochaine étape sera de connecter un véritable modèle d'intelligence artificielle.";
-  }
-
-  return response;
-}
-
-function processMessage(text) {
+async function processMessage(text) {
   const cleanText = text.trim();
-  if (!cleanText) return;
 
-  addMessage("VOUS", cleanText, "user-message");
-  history.push({ role: "user", content: cleanText });
+  if (!cleanText || busy) return;
 
-  statusText.textContent = "Analyse de votre demande...";
+  busy = true;
+  input.disabled = true;
+  statusText.textContent = "Connexion au cerveau de J.A.R.V.I.S...";
   core.classList.add("active");
 
-  const response = replyTo(cleanText);
+  addMessage("VOUS", cleanText, "user-message");
 
-  setTimeout(() => {
-    addMessage("J.A.R.V.I.S.", response, "jarvis-message");
-    history.push({ role: "assistant", content: response });
+  history.push({
+    role: "user",
+    content: cleanText
+  });
 
+  try {
+    const response = await fetch(API_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        messages: history.slice(-20)
+      })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || `Erreur HTTP ${response.status}`);
+    }
+
+    if (!data.reply) {
+      throw new Error("Le serveur n'a renvoyé aucune réponse.");
+    }
+
+    history.push({
+      role: "assistant",
+      content: data.reply
+    });
+
+    addMessage("J.A.R.V.I.S.", data.reply, "jarvis-message");
     statusText.textContent = "Systèmes opérationnels.";
+    speak(data.reply);
+
+  } catch (error) {
+    console.error("Erreur J.A.R.V.I.S. :", error);
+
+    addMessage(
+      "SYSTÈME",
+      "Impossible de contacter mon intelligence artificielle. " +
+      "Vérifiez le Worker et sa configuration. Détail : " +
+      error.message,
+      "jarvis-message"
+    );
+
+    statusText.textContent = "Erreur de connexion.";
+  } finally {
+    busy = false;
+    input.disabled = false;
     core.classList.remove("active");
-    speak(response);
-  }, 500);
+    input.focus();
+  }
 }
 
 form.addEventListener("submit", event => {
   event.preventDefault();
-  processMessage(input.value);
-  input.value = "";
-});
 
-let recognition = null;
-let listening = false;
+  const text = input.value;
+  if (!text.trim() || busy) return;
+
+  input.value = "";
+  processMessage(text);
+});
 
 const SpeechRecognition =
   window.SpeechRecognition || window.webkitSpeechRecognition;
+
+let recognition = null;
 
 if (SpeechRecognition) {
   recognition = new SpeechRecognition();
@@ -118,7 +136,6 @@ if (SpeechRecognition) {
   recognition.interimResults = false;
 
   recognition.onstart = () => {
-    listening = true;
     voiceButton.textContent = "🔴 J'ÉCOUTE...";
     statusText.textContent = "Je vous écoute.";
   };
@@ -128,39 +145,32 @@ if (SpeechRecognition) {
     processMessage(transcript);
   };
 
-  recognition.onerror = () => {
-    statusText.textContent = "Micro indisponible ou écoute interrompue.";
+  recognition.onerror = event => {
+    statusText.textContent =
+      "Micro indisponible : " + event.error;
   };
 
   recognition.onend = () => {
-    listening = false;
     voiceButton.textContent = "🎙️ PARLER À J.A.R.V.I.S.";
   };
+
 } else {
-  voiceButton.textContent = "🎙️ VOIX NON DISPONIBLE";
+  voiceButton.textContent = "🎙️ MICRO INDISPONIBLE";
 }
 
 voiceButton.addEventListener("click", () => {
   if (!recognition) {
-    statusText.textContent = "Essayez Chrome et autorisez le micro.";
+    statusText.textContent =
+      "La reconnaissance vocale n'est pas disponible dans ce navigateur.";
     return;
   }
 
-  if (listening) {
-    recognition.stop();
-  } else {
-    try {
-      recognition.start();
-    } catch (error) {
-      statusText.textContent = "Veuillez réessayer dans un instant.";
-    }
+  try {
+    recognition.start();
+  } catch (error) {
+    statusText.textContent = "Réessayez dans un instant.";
   }
 });
 
-if (window.speechSynthesis) {
-  window.speechSynthesis.onvoiceschanged = () => {};
-}
-
-console.log("J.A.R.V.I.S. initialisé.");
+console.log("J.A.R.V.I.S. connecté à son interface.");
 ```
-
